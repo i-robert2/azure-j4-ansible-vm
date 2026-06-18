@@ -7,14 +7,14 @@
 
 - name: Download and extract node_exporter
   ansible.builtin.unarchive:
-    src: "https://github.com/prometheus/node_exporter/releases/download/v{{ monitoring_agent_node_exporter_version }}/node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}.tar.gz"
+    src: "{{ monitoring_agent_node_exporter_base_url }}/v{{ monitoring_agent_node_exporter_version }}/{{ monitoring_agent_node_exporter_dir }}.tar.gz"
     dest: /opt/
     remote_src: true
-    creates: "/opt/node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}"
+    creates: "/opt/{{ monitoring_agent_node_exporter_dir }}"
 
 - name: Symlink node_exporter binary
   ansible.builtin.file:
-    src: "/opt/node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}/node_exporter"
+    src: "/opt/{{ monitoring_agent_node_exporter_dir }}/node_exporter"
     dest: /usr/local/bin/node_exporter
     state: link
 

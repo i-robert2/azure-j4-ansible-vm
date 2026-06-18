@@ -100,13 +100,13 @@ jobs:
 
       - name: Apply site.yml
         working-directory: ansible
-        run: ansible-playbook -i inventory/hosts.ini site.yml
+        run: ansible-playbook -i inventory/hosts.ini --vault-password-file .vault-password site.yml
 
       - name: Idempotency check (second run must be 0 changes)
         working-directory: ansible
         run: |
           set -o pipefail
-          ansible-playbook -i inventory/hosts.ini site.yml | tee run2.log
+          ansible-playbook -i inventory/hosts.ini --vault-password-file .vault-password site.yml | tee run2.log
           if grep -E 'changed=[1-9]' run2.log; then
             echo "::error::Playbook is not idempotent — second run reported changes."
             exit 1
@@ -115,11 +115,11 @@ jobs:
 
       - name: Smoke tests (verify.yml)
         working-directory: ansible
-        run: ansible-playbook -i inventory/hosts.ini verify.yml
+        run: ansible-playbook -i inventory/hosts.ini --vault-password-file .vault-password verify.yml
 
       - name: Tag scoping is fast (acceptance #8)
         working-directory: ansible
         run: |
           start=$(date +%s)
-          ansible-playbook -i inventory/hosts.ini site.yml --tags monitoring
+          ansible-playbook -i inventory/hosts.ini --vault-password-file .vault-password site.yml --tags monitoring
           echo "monitoring-only run took $(( $(date +%s) - start ))s"

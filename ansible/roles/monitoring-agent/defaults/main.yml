@@ -1,3 +1,5 @@
 ---
 monitoring_agent_node_exporter_version: "1.8.2"
 monitoring_agent_node_exporter_arch: linux-amd64
+monitoring_agent_node_exporter_dir: "node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}"
+monitoring_agent_node_exporter_base_url: "https://github.com/prometheus/node_exporter/releases/download"
