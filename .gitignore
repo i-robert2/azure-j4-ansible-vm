@@ -1,0 +1,19 @@
+# Ansible
+*.retry
+.vault_pass
+vault_pass.txt
+*.vault-pass
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Inventory cache / secrets
+inventory/*.cache
+group_vars/**/vault.yml.plain
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
