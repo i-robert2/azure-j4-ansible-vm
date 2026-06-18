@@ -21,7 +21,7 @@
         that:
           - health.json.status == 'ok'
 
-    - name: psql SELECT 1 against db-01 over the web subnet
+    - name: Query db-01 over the web subnet (psql SELECT 1)
       ansible.builtin.command:
         cmd: "psql -h db-01 -U {{ db_user }} -d {{ db_name }} -tAc 'SELECT 1'"
       environment:
@@ -31,12 +31,12 @@
       failed_when: psql_out.stdout | trim != '1'
       no_log: true
 
-- name: node_exporter responds on every host
+- name: Node exporter responds on every host
   hosts: all
   become: false
   gather_facts: false
   tasks:
-    - name: node_exporter metrics on :9100
+    - name: Node exporter metrics on :9100
       ansible.builtin.uri:
         url: http://localhost:9100/metrics
         status_code: 200
