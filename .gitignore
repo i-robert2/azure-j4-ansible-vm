@@ -1,8 +1,12 @@
 # Ansible
 *.retry
+.vault-password
 .vault_pass
 vault_pass.txt
 *.vault-pass
+ansible/.galaxy/
+ansible/.facts-cache/
+ansible/*.log
 
 # Python
 __pycache__/

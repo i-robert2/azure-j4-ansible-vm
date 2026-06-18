@@ -1,0 +1,23 @@
+---
+- name: Common baseline + monitoring on every host
+  hosts: all
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+    - role: monitoring-agent
+      tags: [monitoring]
+
+- name: Web tier
+  hosts: webservers
+  become: true
+  roles:
+    - role: webapp
+      tags: [web]
+
+- name: Database tier
+  hosts: databases
+  become: true
+  roles:
+    - role: database
+      tags: [db]

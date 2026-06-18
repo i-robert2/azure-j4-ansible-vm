@@ -1,0 +1,6 @@
+---
+ansible_user: azureuser
+ansible_python_interpreter: /usr/bin/python3
+# App database identifiers (used by the webapp smoke test and the database role).
+db_name: notes
+db_user: app

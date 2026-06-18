@@ -1,0 +1,44 @@
+---
+# Smoke tests (acceptance #9). Run after site.yml:
+#   ansible-playbook verify.yml
+- name: Web tier health + cross-subnet DB connectivity
+  hosts: webservers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Health endpoint returns 200
+      ansible.builtin.uri:
+        url: http://localhost/health
+        status_code: 200
+        return_content: true
+      register: health
+      retries: 5
+      delay: 3
+      until: health.status == 200
+
+    - name: Assert health body
+      ansible.builtin.assert:
+        that:
+          - health.json.status == 'ok'
+
+    - name: psql SELECT 1 against db-01 over the web subnet
+      ansible.builtin.command:
+        cmd: "psql -h db-01 -U {{ db_user }} -d {{ db_name }} -tAc 'SELECT 1'"
+      environment:
+        PGPASSWORD: "{{ vault_db_password }}"
+      register: psql_out
+      changed_when: false
+      failed_when: psql_out.stdout | trim != '1'
+      no_log: true
+
+- name: node_exporter responds on every host
+  hosts: all
+  become: false
+  gather_facts: false
+  tasks:
+    - name: node_exporter metrics on :9100
+      ansible.builtin.uri:
+        url: http://localhost:9100/metrics
+        status_code: 200
+      retries: 5
+      delay: 3

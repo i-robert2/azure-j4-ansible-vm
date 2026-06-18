@@ -1,0 +1,125 @@
+name: ansible
+
+on:
+  push:
+    branches: [main]
+    paths: [ansible/**, .github/workflows/ansible.yml]
+  pull_request:
+    paths: [ansible/**, .github/workflows/ansible.yml]
+
+permissions:
+  contents: read
+
+env:
+  RG: rg-j1-dev-weu-001
+  BASTION: bas-j1-dev-weu-001
+
+jobs:
+  # ---------- Gate: lint (acceptance #5) ----------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ansible-core ansible-lint
+      - run: ansible-galaxy collection install -r ansible/requirements.yml
+      - name: ansible-lint
+        working-directory: ansible
+        run: ansible-lint
+
+  # ---------- Live apply + idempotency + smoke tests (push to main) ----------
+  deploy:
+    needs: lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible + collections
+        run: |
+          pip install ansible-core
+          ansible-galaxy collection install -r ansible/requirements.yml
+          pip install -r ~/.ansible/collections/ansible_collections/azure/azcollection/requirements.txt
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install az bastion + ssh extensions
+        run: |
+          az extension add -n bastion --only-show-errors
+          az extension add -n ssh --only-show-errors
+
+      - name: Write SSH key + vault password
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s' "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > ansible/.vault-password
+          chmod 600 ansible/.vault-password
+
+      - name: Open Bastion tunnels (web-01:2201, web-02:2202, db-01:2203)
+        run: |
+          set -euo pipefail
+          declare -A MAP=( [vm-web-01-j1-dev-weu-001]=2201 [vm-web-02-j1-dev-weu-001]=2202 [vm-db-01-j1-dev-weu-001]=2203 )
+          for vm in "${!MAP[@]}"; do
+            port="${MAP[$vm]}"
+            id=$(az vm show -g "$RG" -n "$vm" --query id -o tsv)
+            nohup az network bastion tunnel --name "$BASTION" -g "$RG" \
+              --target-resource-id "$id" --resource-port 22 --port "$port" \
+              > "tunnel-$port.log" 2>&1 &
+          done
+          for port in 2201 2202 2203; do
+            for i in $(seq 1 45); do
+              if (echo > /dev/tcp/127.0.0.1/"$port") 2>/dev/null; then
+                echo "tunnel ready on $port"; break
+              fi
+              if [ "$i" -eq 45 ]; then echo "tunnel $port never came up"; cat "tunnel-$port.log"; exit 1; fi
+              sleep 2
+            done
+          done
+
+      - name: Dynamic inventory graph (acceptance #1)
+        working-directory: ansible
+        run: ansible-inventory -i inventory/azure_rm.yml --graph
+
+      - name: Ping all hosts
+        working-directory: ansible
+        run: ansible -i inventory/hosts.ini all -m ping
+
+      - name: Apply site.yml
+        working-directory: ansible
+        run: ansible-playbook -i inventory/hosts.ini site.yml
+
+      - name: Idempotency check (second run must be 0 changes)
+        working-directory: ansible
+        run: |
+          set -o pipefail
+          ansible-playbook -i inventory/hosts.ini site.yml | tee run2.log
+          if grep -E 'changed=[1-9]' run2.log; then
+            echo "::error::Playbook is not idempotent — second run reported changes."
+            exit 1
+          fi
+          echo "Idempotent: second run had 0 changes."
+
+      - name: Smoke tests (verify.yml)
+        working-directory: ansible
+        run: ansible-playbook -i inventory/hosts.ini verify.yml
+
+      - name: Tag scoping is fast (acceptance #8)
+        working-directory: ansible
+        run: |
+          start=$(date +%s)
+          ansible-playbook -i inventory/hosts.ini site.yml --tags monitoring
+          echo "monitoring-only run took $(( $(date +%s) - start ))s"

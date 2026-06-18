@@ -1,0 +1,23 @@
+# Dynamic inventory from Azure (acceptance test #1).
+#
+# Queries Azure for the J1 fleet (resource group rg-j1-dev-weu-001, all tagged
+# project=J1) and groups hosts into `webservers` / `databases` by VM name.
+#
+# Demonstrate with:
+#   ansible-inventory -i inventory/azure_rm.yml --graph
+#
+# NOTE: For the actual playbook *connection* we go through an Azure Bastion
+# tunnel (the VMs have no public IP), so the live run uses inventory/hosts.ini
+# (localhost:220x tunnel ports). This file proves the inventory is dynamic.
+plugin: azure.azcollection.azure_rm
+auth_source: cli
+include_vm_resource_groups:
+  - rg-j1-dev-weu-001
+hostnames:
+  - name
+conditional_groups:
+  webservers: "name.startswith('vm-web')"
+  databases: "name.startswith('vm-db')"
+keyed_groups:
+  - prefix: tag
+    key: tags

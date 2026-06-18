@@ -1,0 +1,13 @@
+---
+common_timezone: Europe/Bucharest
+common_ssh_port: 22
+common_admin_users:
+  - azureuser
+common_packages:
+  - fail2ban
+  - unattended-upgrades
+  - curl
+  - jq
+  - htop
+  - ca-certificates
+  - chrony

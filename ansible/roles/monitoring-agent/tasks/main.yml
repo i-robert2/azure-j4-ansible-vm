@@ -1,0 +1,47 @@
+---
+- name: Create node_exporter user
+  ansible.builtin.user:
+    name: node_exporter
+    system: true
+    shell: /usr/sbin/nologin
+
+- name: Download and extract node_exporter
+  ansible.builtin.unarchive:
+    src: "https://github.com/prometheus/node_exporter/releases/download/v{{ monitoring_agent_node_exporter_version }}/node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}.tar.gz"
+    dest: /opt/
+    remote_src: true
+    creates: "/opt/node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}"
+
+- name: Symlink node_exporter binary
+  ansible.builtin.file:
+    src: "/opt/node_exporter-{{ monitoring_agent_node_exporter_version }}.{{ monitoring_agent_node_exporter_arch }}/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    state: link
+
+- name: Install node_exporter systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/node_exporter.service
+    content: |
+      [Unit]
+      Description=Prometheus Node Exporter
+      After=network.target
+
+      [Service]
+      User=node_exporter
+      ExecStart=/usr/local/bin/node_exporter
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart node_exporter
+
+- name: Enable and start node_exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: true
+    state: started

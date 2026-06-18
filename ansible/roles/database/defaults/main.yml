@@ -1,0 +1,4 @@
+---
+# db_name and db_user are global (group_vars/all) — shared with the webapp smoke test.
+database_listen_subnet: "10.10.1.0/24" # only the web subnet
+database_postgres_version: 16

@@ -1,0 +1,86 @@
+---
+- name: Install nginx and python tooling
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - python3-venv
+      - python3-pip
+      - postgresql-client
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create app user
+  ansible.builtin.user:
+    name: "{{ webapp_user }}"
+    home: "{{ webapp_dir }}"
+    shell: /usr/sbin/nologin
+    system: true
+
+- name: Ensure app source directory exists
+  ansible.builtin.file:
+    path: "{{ webapp_dir }}/src"
+    state: directory
+    owner: "{{ webapp_user }}"
+    group: "{{ webapp_user }}"
+    mode: "0755"
+
+- name: Deploy application files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ webapp_dir }}/src/{{ item }}"
+    owner: "{{ webapp_user }}"
+    group: "{{ webapp_user }}"
+    mode: "0644"
+  loop:
+    - app.py
+    - requirements.txt
+  notify: Restart gunicorn
+
+- name: Create venv and install deps
+  become: true
+  become_user: "{{ webapp_user }}"
+  ansible.builtin.pip:
+    requirements: "{{ webapp_dir }}/src/requirements.txt"
+    virtualenv: "{{ webapp_dir }}/.venv"
+    virtualenv_command: python3 -m venv
+  notify: Restart gunicorn
+
+- name: Render gunicorn systemd unit
+  ansible.builtin.template:
+    src: gunicorn.service.j2
+    dest: /etc/systemd/system/gunicorn.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart gunicorn
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Render nginx site
+  ansible.builtin.template:
+    src: nginx-site.conf.j2
+    dest: /etc/nginx/sites-available/notes
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/notes
+    dest: /etc/nginx/sites-enabled/notes
+    state: link
+  notify: Reload nginx
+
+- name: Enable and start gunicorn
+  ansible.builtin.systemd:
+    name: gunicorn
+    enabled: true
+    state: started

@@ -1,0 +1,47 @@
+---
+- name: Install postgres
+  ansible.builtin.apt:
+    name:
+      - "postgresql-{{ database_postgres_version }}"
+      - "postgresql-client-{{ database_postgres_version }}"
+      - python3-psycopg2
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Listen on all interfaces (private NICs only; no public IP exists)
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ database_postgres_version }}/main/postgresql.conf"
+    regexp: '^#?listen_addresses\s*='
+    line: "listen_addresses = '*'"
+  notify: Restart postgres
+
+- name: Allow the web subnet in pg_hba with scram-sha-256
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ database_postgres_version }}/main/pg_hba.conf"
+    line: "host {{ db_name }} {{ db_user }} {{ database_listen_subnet }} scram-sha-256"
+  notify: Restart postgres
+
+- name: Ensure postgres is running
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Create app database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    state: present
+
+- name: Create app role
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    db: "{{ db_name }}"
+    name: "{{ db_user }}"
+    password: "{{ vault_db_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  no_log: true

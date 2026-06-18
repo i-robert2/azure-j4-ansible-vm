@@ -1,0 +1,4 @@
+---
+webapp_user: webapp
+webapp_dir: /opt/notes-api
+webapp_port: 8000

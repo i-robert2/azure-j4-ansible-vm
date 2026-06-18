@@ -1,0 +1,9 @@
+# Managed by Ansible (common role). SSH hardening drop-in.
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+AllowUsers {{ common_admin_users | join(' ') }}
+ClientAliveInterval 300
+ClientAliveCountMax 2
+X11Forwarding no
+MaxAuthTries 3

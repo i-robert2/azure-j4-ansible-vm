@@ -1,0 +1,13 @@
+[Unit]
+Description=gunicorn for notes-api
+After=network.target
+
+[Service]
+User={{ webapp_user }}
+Group={{ webapp_user }}
+WorkingDirectory={{ webapp_dir }}/src
+ExecStart={{ webapp_dir }}/.venv/bin/gunicorn -w 2 -b 127.0.0.1:{{ webapp_port }} app:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

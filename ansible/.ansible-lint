@@ -1,0 +1,6 @@
+---
+profile: production
+exclude_paths:
+  - .galaxy/
+  - .facts-cache/
+  - inventory/azure_rm.yml
