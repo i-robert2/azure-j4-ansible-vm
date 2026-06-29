@@ -190,6 +190,8 @@ Real problems from building this for real — the root-cause/fix is the useful p
 
 ## Cost
 
+J4 adds **no** infrastructure — it configures J1's VMs. The only cost is J1 running while you test, and a **Standard Bastion** (~€0.19/hr) instead of Developer (Standard is required for tunneling). A deploy-test-destroy session is ~€1. Tear down J1 (`terraform destroy`) when done.
+
 ---
 
 ## License
