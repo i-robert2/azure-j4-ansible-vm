@@ -157,9 +157,38 @@ ansible-inventory -i inventory/azure_rm.yml --graph
 
 ---
 
-## Cost
+## Issues we hit (and how we fixed them)
 
-J4 adds **no** infrastructure — it configures J1's VMs. The only cost is J1 running while you test, and a **Standard Bastion** (~€0.19/hr) instead of Developer (Standard is required for tunneling). A deploy-test-destroy session is ~€1. Tear down J1 (`terraform destroy`) when done.
+Real problems from building this for real — the root-cause/fix is the useful part.
+
+### `ansible-lint` production profile rejected almost everything
+**Symptom:** The lint gate failed with a wall of `name[casing]`, role-name, and var-naming errors.
+**Cause:** The **production** profile is strict: task/play/handler names must be **Capitalized**; role names must match `^[a-z][a-z0-9_]*$` (**no hyphens** — `monitoring-agent` was illegal); role variables must be **role-prefixed**; lines ≤ 160 chars.
+**Fix:** Renamed `monitoring-agent` → `monitoring_agent`, capitalized all names, prefixed role vars, wrapped long lines.
+
+### `vault_password_file` in `ansible.cfg` broke the lint job
+**Symptom:** `ansible-lint` syntax-check failed in CI even though the playbooks were valid.
+**Cause:** `ansible.cfg` pointed at a `vault_password_file` that doesn't exist in the lint job (no secrets there).
+**Fix:** Removed `vault_password_file` from `ansible.cfg` and passed `--vault-password-file` **at runtime** in the deploy job only.
+
+### Playbook errored: "callback plugin has been removed"
+**Symptom:** `ansible-playbook` aborted complaining the `yaml` stdout callback was removed.
+**Cause:** `stdout_callback = community.general.yaml` was **removed in community.general v12**.
+**Fix:** Use `stdout_callback = default` + `result_format = yaml` instead.
+
+### Couldn't create the vault on Windows
+**Symptom:** `ansible-vault` failed with `WinError 1` (blocking I/O); `ansible.parsing.vault` imports the Unix-only `fcntl` module.
+**Cause:** No WSL distro installed; Ansible's vault path is Unix-only on this machine.
+**Fix:** Generated the AES256 vault blob directly with Python's `cryptography` library and verified a decrypt round-trip. CI (Linux) handles it normally at runtime.
+
+### Ansible needed a Bastion tunnel J1 didn't have
+**Symptom:** Ansible couldn't reach the VMs — the Developer Bastion has no CLI tunnel.
+**Cause:** Agentless config over Bastion needs `az network bastion tunnel`, which **only the Standard SKU** supports.
+**Fix:** Added a selectable `bastion_sku` var to J1 (Developer default | Standard) and deployed J1 with `Standard` for J4. In CI, opened one `nohup az network bastion tunnel … &` per VM to ports 2201–2203 and polled `/dev/tcp` until ready.
+
+---
+
+## Cost
 
 ---
 
